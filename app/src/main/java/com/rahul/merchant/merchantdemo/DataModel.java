@@ -17,12 +17,14 @@ class DataModel {
     public String course;
     public String subjects;
     public String address;
+    public double latitude;
+    public double longitude;
 
     public DataModel() {
         // Default constructor required for calls to DataSnapshot.getValue(User.class)
     }
 
-    public DataModel(String phone, String coaching_name, String address, String city, String faculty, String no_of_students, String fee, String course, String subjects) {
+    public DataModel(String phone, String coaching_name, String address, String city, String faculty, String no_of_students, String fee, String course, String subjects, double latitude, double longitude) {
         this.phone = phone;
         this.coaching_name = coaching_name;
         this.address = address;
@@ -32,5 +34,7 @@ class DataModel {
         this.fee = fee;
         this.course = course;
         this.subjects = subjects;
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 }

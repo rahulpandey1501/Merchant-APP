@@ -141,6 +141,14 @@
                 android:layout_marginRight="16dp"
                 android:textColor="@android:color/white" />
 
+            <ProgressBar
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:indeterminate="true"
+                android:visibility="gone"
+                android:layout_gravity="center_horizontal"
+                android:id="@+id/progress"/>
+
             <Button
                 android:id="@+id/clear_BTN"
                 android:layout_width="wrap_content"
