@@ -47,6 +47,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     final int MANDATORY = 1;
     private double latitude, longitude;
     private ProgressBar progressBar;
+    private String cityString, stateString, postalCodeString, knownNameString;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -102,6 +103,10 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         }
     }
 
+    private GeoLocation getLocationByGeocoder() {
+        return new GeoLocation(latitude, longitude, cityString, stateString, postalCodeString, knownNameString);
+    }
+
     private void setListeners() {
         mDatabase.addValueEventListener(new ValueEventListener() {
             @Override
@@ -152,7 +157,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     private void sendData() {
         DataModel model = new DataModel(getTextFromView(phone), Utility.getTextFromView(coachingName), getTextFromView(address), getTextFromView(city),
-                getTextFromView(faculty), getTextFromView(noOfStudents), getTextFromView(fee), getTextFromView(courses), getTextFromView(subjects), latitude, longitude);
+                getTextFromView(faculty), getTextFromView(noOfStudents), getTextFromView(fee), getTextFromView(courses), getTextFromView(subjects), getLocationByGeocoder());
         String key = mDatabase.push().getKey();
         mDatabase.child(key).setValue(model);
         showSnackBar();
@@ -218,15 +223,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     public void onProviderEnabled(String provider) {
-        Toast.makeText(this, "Enabled new provider " + provider,
-                Toast.LENGTH_SHORT).show();
 
     }
 
     @Override
     public void onProviderDisabled(String provider) {
-        Toast.makeText(this, "Disabled provider " + provider,
-                Toast.LENGTH_SHORT).show();
     }
 
     private void checkLocationPermission() {
