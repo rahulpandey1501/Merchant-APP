@@ -3,7 +3,9 @@ package com.rahul.merchant.merchantdemo;
 import android.annotation.TargetApi;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Address;
 import android.location.Criteria;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -28,6 +30,10 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 
 import static com.rahul.merchant.merchantdemo.Utility.checkForGPSEnable;
 import static com.rahul.merchant.merchantdemo.Utility.checkValidation;
@@ -104,7 +110,17 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     private GeoLocation getLocationByGeocoder() {
-        return new GeoLocation(latitude, longitude, cityString, stateString, postalCodeString, knownNameString);
+        Geocoder geocoder;
+        List<Address> addresses;
+        geocoder = new Geocoder(this, Locale.getDefault());
+        try {
+            addresses = geocoder.getFromLocation(latitude, longitude, 1);
+            return new GeoLocation(latitude, longitude, addresses.get(0).getAddressLine(0), addresses.get(0).getLocality(), addresses.get(0).getAdminArea(),
+                    addresses.get(0).getPostalCode(), addresses.get(0).getFeatureName());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     private void setListeners() {
@@ -157,7 +173,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     private void sendData() {
         DataModel model = new DataModel(getTextFromView(phone), Utility.getTextFromView(coachingName), getTextFromView(address), getTextFromView(city),
-                getTextFromView(faculty), getTextFromView(noOfStudents), getTextFromView(fee), getTextFromView(courses), getTextFromView(subjects), getLocationByGeocoder());
+                getTextFromView(faculty), getTextFromView(noOfStudents), getTextFromView(fee), getTextFromView(courses), getTextFromView(subjects), latitude, longitude, getLocationByGeocoder());
         String key = mDatabase.push().getKey();
         mDatabase.child(key).setValue(model);
         showSnackBar();
