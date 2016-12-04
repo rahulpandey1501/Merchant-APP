@@ -19,13 +19,13 @@ class DataModel {
     public String address;
     public double latitude;
     public double longitude;
-    public GeoLocation geo_location;
+    public GeoLocationModel geo_location;
 
     public DataModel() {
         // Default constructor required for calls to DataSnapshot.getValue(User.class)
     }
 
-    public DataModel(String phone, String coaching_name, String address, String city, String faculty, String no_of_students, String fee, String course, String subjects, double latitude, double longitude, GeoLocation geo_location) {
+    public DataModel(String phone, String coaching_name, String address, String city, String faculty, String no_of_students, String fee, String course, String subjects, double latitude, double longitude, GeoLocationModel geo_location) {
         this.phone = phone;
         this.coaching_name = coaching_name;
         this.address = address;

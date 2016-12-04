@@ -40,7 +40,7 @@ import static com.rahul.merchant.merchantdemo.Utility.checkValidation;
 import static com.rahul.merchant.merchantdemo.Utility.getTextFromView;
 import static com.rahul.merchant.merchantdemo.Utility.log;
 
-public class MainActivity extends AppCompatActivity implements LocationListener {
+public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     private static final int REQUEST_PERMISSION_SETTING = 2;
@@ -49,6 +49,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private Button submit, clear;
     private LinearLayout rootLayout;
     private LocationManager locationManager;
+    private MyLocationListener locationListener;
     private String provider;
     final int MANDATORY = 1;
     private double latitude, longitude;
@@ -94,29 +95,52 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     private void getLocation() {
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         Criteria criteria = new Criteria();
+        criteria.setAccuracy(Criteria.ACCURACY_FINE);
+        criteria.setPowerRequirement(Criteria.POWER_MEDIUM);
+        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         provider = locationManager.getBestProvider(criteria, false);
         if (provider == null)
             return;
-        Location location = locationManager.getLastKnownLocation(provider);
-        locationManager.requestLocationUpdates(provider, 400, 1, this);
-        if (location != null) {
-            log(TAG, "Provider " + provider + " has been selected.");
-            onLocationChanged(location);
-        } else {
-            log(TAG, "Location not available");
+        locationListener = new MyLocationListener() {
+            @Override
+            public void onLocationFound(double latitude, double longitude) {
+                MainActivity.this.latitude = latitude;
+                MainActivity.this.longitude = longitude;
+                log(TAG, "lat: "+latitude+"  long:"+longitude);
+                if (progressBar.getVisibility() == View.VISIBLE) {
+                    hideProgress();
+                    sendData();
+                }
+            }
+        };
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+        Location oldLocation = locationManager.getLastKnownLocation(provider);
+        if (oldLocation != null)  {
+            locationListener.onLocationFound(latitude, longitude);
+            Log.v(TAG, "Got Old location");
         }
+
+//        Location location = locationManager.getLastKnownLocation(provider);
+//        locationManager.requestLocationUpdates(provider, 400, 1, this);
+//        if (location != null) {
+//            log(TAG, "Provider " + provider + " has been selected.");
+//            onLocationChanged(location);
+//        } else {
+//            log(TAG, "Location not available");
+//        }
     }
 
-    private GeoLocation getLocationByGeocoder() {
+    private GeoLocationModel getLocationByGeocoder() {
         Geocoder geocoder;
         List<Address> addresses;
         geocoder = new Geocoder(this, Locale.getDefault());
         try {
             addresses = geocoder.getFromLocation(latitude, longitude, 1);
-            return new GeoLocation(latitude, longitude, addresses.get(0).getAddressLine(0), addresses.get(0).getLocality(), addresses.get(0).getAdminArea(),
-                    addresses.get(0).getPostalCode(), addresses.get(0).getFeatureName());
+            String addressLine2 = addresses.get(0).getMaxAddressLineIndex() > 0? addresses.get(0).getAddressLine(1): null;
+            return new GeoLocationModel(latitude, longitude, addresses.get(0).getAddressLine(0), addressLine2, addresses.get(0).getLocality(), addresses.get(0).getAdminArea(),
+                    addresses.get(0).getPostalCode(), addresses.get(0).getFeatureName(), addresses.get(0).getPhone(), addresses.get(0).getUrl());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -195,6 +219,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         Snackbar snackbar = Snackbar
                 .make(rootLayout, "Updated Successfully", Snackbar.LENGTH_LONG);
         snackbar.show();
+        clearData(rootLayout);
+        coachingName.requestFocus();
     }
 
     private void createDatabase() {
@@ -218,33 +244,33 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     protected void onStop() {
         super.onStop();
         try {
-            locationManager.removeUpdates(this);
+            locationManager.removeUpdates(locationListener);
         }catch (Exception ignore) {}
     }
 
-    @Override
-    public void onLocationChanged(Location location) {
-        latitude = location.getLatitude();
-        longitude = location.getLongitude();
-        log(TAG, "lat: "+latitude+"  long:"+longitude);
-        if (progressBar.getVisibility() == View.VISIBLE) {
-            hideProgress();
-            sendData();
-        }
-    }
-
-    @Override
-    public void onStatusChanged(String s, int i, Bundle bundle) {
-
-    }
-
-    public void onProviderEnabled(String provider) {
-
-    }
-
-    @Override
-    public void onProviderDisabled(String provider) {
-    }
+//    @Override
+//    public void onLocationChanged(Location location) {
+//        latitude = location.getLatitude();
+//        longitude = location.getLongitude();
+//        log(TAG, "lat: "+latitude+"  long:"+longitude);
+//        if (progressBar.getVisibility() == View.VISIBLE) {
+//            hideProgress();
+//            sendData();
+//        }
+//    }
+//
+//    @Override
+//    public void onStatusChanged(String s, int i, Bundle bundle) {
+//
+//    }
+//
+//    public void onProviderEnabled(String provider) {
+//
+//    }
+//
+//    @Override
+//    public void onProviderDisabled(String provider) {
+//    }
 
     private void checkLocationPermission() {
         if (Build.VERSION.SDK_INT >= 23) {
