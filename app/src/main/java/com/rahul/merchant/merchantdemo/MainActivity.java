@@ -1,20 +1,27 @@
 package com.rahul.merchant.merchantdemo;
 
+import android.*;
+import android.Manifest;
 import android.annotation.TargetApi;
+import android.app.Activity;
+import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.Address;
 import android.location.Criteria;
 import android.location.Geocoder;
 import android.location.Location;
-import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
@@ -31,6 +38,7 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
@@ -44,17 +52,20 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     private static final int REQUEST_PERMISSION_SETTING = 2;
+    private static final int CAMERA_REQUEST_CODE = 100;
     private DatabaseReference mDatabase;
     private EditText coachingName, address, phone, city, faculty, noOfStudents, fee, courses, subjects;
+    private View takePhoto;
     private Button submit, clear;
     private LinearLayout rootLayout;
     private LocationManager locationManager;
     private MyLocationListener locationListener;
-    private String provider;
     final int MANDATORY = 1;
     private double latitude, longitude;
     private ProgressBar progressBar;
-    private String cityString, stateString, postalCodeString, knownNameString;
+    private File imageFile;
+    private boolean imageCaptured;
+    private Uri firebaseImageStorageUri;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
         setMandatoryTag();
         createDatabase();
         setListeners();
-        checkLocationPermission();
+        checkPermissions();
     }
 
     private void bindViews() {
@@ -81,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
         submit = (Button) findViewById(R.id.submit_BTN);
         clear = (Button) findViewById(R.id.clear_BTN);
         progressBar = (ProgressBar) findViewById(R.id.progress);
+        takePhoto = findViewById(R.id.take_photo);
     }
 
     private void setMandatoryTag() {
@@ -99,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
         criteria.setAccuracy(Criteria.ACCURACY_FINE);
         criteria.setPowerRequirement(Criteria.POWER_MEDIUM);
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
-        provider = locationManager.getBestProvider(criteria, false);
+        String provider = locationManager.getBestProvider(criteria, false);
         if (provider == null)
             return;
         locationListener = new MyLocationListener() {
@@ -107,7 +119,6 @@ public class MainActivity extends AppCompatActivity {
             public void onLocationFound(double latitude, double longitude) {
                 MainActivity.this.latitude = latitude;
                 MainActivity.this.longitude = longitude;
-                log(TAG, "lat: "+latitude+"  long:"+longitude);
                 if (progressBar.getVisibility() == View.VISIBLE) {
                     hideProgress();
                     sendData();
@@ -121,15 +132,6 @@ public class MainActivity extends AppCompatActivity {
             locationListener.onLocationFound(latitude, longitude);
             Log.v(TAG, "Got Old location");
         }
-
-//        Location location = locationManager.getLastKnownLocation(provider);
-//        locationManager.requestLocationUpdates(provider, 400, 1, this);
-//        if (location != null) {
-//            log(TAG, "Provider " + provider + " has been selected.");
-//            onLocationChanged(location);
-//        } else {
-//            log(TAG, "Location not available");
-//        }
     }
 
     private GeoLocationModel getLocationByGeocoder() {
@@ -151,36 +153,68 @@ public class MainActivity extends AppCompatActivity {
         mDatabase.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-                // This method is called once with the initial value and again
-                // whenever data at this location is updated.
-//                DataModel value = dataSnapshot.getValue(DataModel.class);
                 log(TAG, "Value is: ");
             }
 
             @Override
             public void onCancelled(DatabaseError databaseError) {
-                // Failed to read value
                 Log.w(TAG, "Failed to read value.", databaseError.toException());
+            }
+        });
+
+        takePhoto.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                captureImage(coachingName.getText().toString()+".jpeg");
             }
         });
 
         submit.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (!checkValidation(rootLayout)) return;
-                if (latitude > 0 && longitude > 0)
-                    sendData();
-                else
-                    showProgress();
+                if (!checkValidation(rootLayout)) {
+                    return;
+                }
+                if (!imageCaptured) {
+                        Toast.makeText(getApplicationContext(), "Please take a picture", Toast.LENGTH_SHORT).show();
+                }
+                else {
+                    startUpload(Uri.fromFile(ImageCompression.compressImage(imageFile.getAbsolutePath(), 95, 0)));
+                }
+
             }
         });
-
         clear.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearData(rootLayout);
             }
         });
+    }
+
+    private void checkForLocationRetrieve() {
+        if (latitude > 0 && longitude > 0) {
+            sendData();
+        }
+        else {
+            showProgress();
+        }
+    }
+
+    private void captureImage(String fileName) {
+        String dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES) + "/merchantApp/";
+        File newDir = new File(dir);
+        newDir.mkdirs();
+        imageFile = new File(dir + fileName);
+        try {
+            imageFile.createNewFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        Uri outputFileUri = FileProvider.getUriForFile(this, this.getApplicationContext().getPackageName() + ".provider", imageFile);
+        Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, outputFileUri);
+        startActivityForResult(cameraIntent, CAMERA_REQUEST_CODE);
     }
 
     private void showProgress() {
@@ -197,7 +231,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void sendData() {
         DataModel model = new DataModel(getTextFromView(phone), Utility.getTextFromView(coachingName), getTextFromView(address), getTextFromView(city),
-                getTextFromView(faculty), getTextFromView(noOfStudents), getTextFromView(fee), getTextFromView(courses), getTextFromView(subjects), latitude, longitude, getLocationByGeocoder());
+                getTextFromView(faculty), getTextFromView(noOfStudents), getTextFromView(fee), getTextFromView(courses), getTextFromView(subjects), firebaseImageStorageUri.toString(), latitude, longitude, getLocationByGeocoder());
         String key = mDatabase.push().getKey();
         mDatabase.child(key).setValue(model);
         showSnackBar();
@@ -218,6 +252,7 @@ public class MainActivity extends AppCompatActivity {
     private void showSnackBar() {
         Snackbar snackbar = Snackbar
                 .make(rootLayout, "Updated Successfully", Snackbar.LENGTH_LONG);
+        imageCaptured = false;
         snackbar.show();
         clearData(rootLayout);
         coachingName.requestFocus();
@@ -248,34 +283,28 @@ public class MainActivity extends AppCompatActivity {
         }catch (Exception ignore) {}
     }
 
-//    @Override
-//    public void onLocationChanged(Location location) {
-//        latitude = location.getLatitude();
-//        longitude = location.getLongitude();
-//        log(TAG, "lat: "+latitude+"  long:"+longitude);
-//        if (progressBar.getVisibility() == View.VISIBLE) {
-//            hideProgress();
-//            sendData();
-//        }
-//    }
-//
-//    @Override
-//    public void onStatusChanged(String s, int i, Bundle bundle) {
-//
-//    }
-//
-//    public void onProviderEnabled(String provider) {
-//
-//    }
-//
-//    @Override
-//    public void onProviderDisabled(String provider) {
-//    }
-
-    private void checkLocationPermission() {
+    private void checkPermissions() {
         if (Build.VERSION.SDK_INT >= 23) {
-            if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.checkSelfPermission(this,
+                    Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                    && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                    && ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
+                    && ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+                    && ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
+            {
+                ActivityCompat.requestPermissions(this, new String[]{
+                        Manifest.permission.CAMERA,
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                }, 1);
+                return;
+            }
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
+                    && ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+                    && ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION}, 1);
                 return;
             }
@@ -299,7 +328,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                     if (!(grantResults.length > 0
                             && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
-                        checkLocationPermission();
+                        checkPermissions();
                     } else {
                         getLocation();
                     }
@@ -311,8 +340,48 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == REQUEST_PERMISSION_SETTING) {
-            checkLocationPermission();
+            checkPermissions();
+        }
+        if (requestCode == CAMERA_REQUEST_CODE) {
+            switch (resultCode) {
+                case Activity.RESULT_OK:
+                    imageCaptured = true;
+                    Toast.makeText(getApplicationContext(), "Image successfully captured", Toast.LENGTH_SHORT).show();
+                    break;
+                default:
+                    Toast.makeText(getApplicationContext(), "Image not captured try again", Toast.LENGTH_SHORT).show();
+            }
         }
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private void startUpload(Uri uri) {
+        final ProgressDialog progressDialog = new ProgressDialog(this);
+        progressDialog.setMax(100);
+        progressDialog.setIndeterminate(false);
+        progressDialog.setTitle("Uploading...");
+        progressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        progressDialog.show();
+
+        new FileStorage(this, imageFile.getName()) {
+            @Override
+            protected void onProgress(int progress) {
+                progressDialog.setProgress(progress);
+                log(progress+"%");
+            }
+
+            @Override
+            protected void onSuccess(Uri uri) {
+                progressDialog.dismiss();
+                firebaseImageStorageUri = uri;
+                checkForLocationRetrieve();
+            }
+
+            @Override
+            protected void onFailure() {
+                progressDialog.dismiss();
+                Toast.makeText(getApplicationContext(), "Upload fail please try again", Toast.LENGTH_SHORT).show();
+            }
+        }.startUpload(uri);
     }
 }
